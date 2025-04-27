@@ -93,7 +93,7 @@ export default function Home() {
   return (
     <main className="flex flex-col w-full min-h-screen bg-gradient-to-b from-background to-muted/20">
       {/* 导航栏 */}
-      <header className="sticky top-0 z-10 py-4 mb-6 border-b bg-background/90 backdrop-blur-sm border-border/40">
+      <header className="sticky top-0 z-10 py-4 mb-10 border-b bg-background/90 backdrop-blur-sm border-border/40">
         <div className="flex items-center justify-between px-10 mx-auto">
           <div className="flex items-center gap-3">
             <BookOpen className="w-8 h-8 text-primary" />
@@ -143,7 +143,9 @@ export default function Home() {
 
           {selectedBeginning && !showHistory && (
             <>
-              <StoryContent storyContent={storyContent} onGeneratePrompts={handleGeneratePrompts} isGenerating={isGenerating} />
+              <div className="mb-8">
+                <StoryContent storyContent={storyContent} onGeneratePrompts={handleGeneratePrompts} isGenerating={isGenerating} />
+              </div>
               <PromptSelector prompts={prompts} onSelectPrompt={handleSelectPrompt} isGenerating={isGenerating} />
             </>
           )}

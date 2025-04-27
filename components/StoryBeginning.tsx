@@ -64,14 +64,14 @@ export function StoryBeginning({ onSelectBeginning }: StoryBeginningProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-16 animate-fadeIn">
+    <div className="max-w-5xl mx-auto space-y-12 animate-fadeIn">
       {/* 预设开头 */}
       <div>
         <h2 className="flex items-center justify-center mb-8 text-3xl font-bold text-center">
           <BookOpen className="w-8 h-8 mr-3 text-primary" />
           选择一个故事开头
         </h2>
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-8">
           {presetBeginnings.map((beginning) => (
             <Card key={beginning.id} className="overflow-hidden transition-all duration-300 hover:shadow-2xl hover:translate-y-[-4px] border-2 bg-card/80">
               <CardContent className="p-0">
@@ -80,7 +80,7 @@ export function StoryBeginning({ onSelectBeginning }: StoryBeginningProps) {
                   <h3 className="text-xl font-semibold text-primary">{beginning.title}</h3>
                 </div>
                 <div className="p-6">
-                  <p className="mb-6 text-base leading-relaxed text-muted-foreground">{beginning.content}</p>
+                  <p className="m-10 text-base leading-relaxed text-muted-foreground">{beginning.content}</p>
                   <Button className="w-full py-6 mt-4 text-base shadow-md" onClick={() => onSelectBeginning(beginning.content)}>
                     选择此开头
                   </Button>
@@ -108,7 +108,7 @@ export function StoryBeginning({ onSelectBeginning }: StoryBeginningProps) {
           创作自定义开头
         </h2>
         <Card className="overflow-hidden border-2 shadow-xl bg-card/80">
-          <CardContent className="p-8 space-y-6">
+          <CardContent className="p-8 space-y-8">
             <div className="space-y-4">
               <Label htmlFor="customBeginning" className="flex items-center text-lg font-medium">
                 <Sparkles className="w-5 h-5 mr-2 text-primary" />
