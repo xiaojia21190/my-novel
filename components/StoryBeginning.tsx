@@ -73,7 +73,7 @@ export function StoryBeginning({ onSelectBeginning }: StoryBeginningProps) {
         </h2>
         <div className="grid grid-cols-3 gap-8">
           {presetBeginnings.map((beginning) => (
-            <Card key={beginning.id} className="overflow-hidden transition-all duration-300 hover:shadow-2xl hover:translate-y-[-4px] border-2 bg-card/80">
+            <Card key={beginning.id} className="overflow-hidden transition-all duration-300 hover:shadow-2xl hover:translate-y-[-4px] border-2 bg-card/80 cursor-pointer">
               <CardContent className="p-0">
                 <div className="flex items-center px-6 py-4 border-b bg-gradient-to-r from-primary/20 to-secondary/10">
                   <span className="mr-3 text-3xl">{beginning.icon}</span>
@@ -139,7 +139,7 @@ export function StoryBeginning({ onSelectBeginning }: StoryBeginningProps) {
                 </div>
               </div>
             </div>
-            <Button onClick={handleCustomBeginningSubmit} disabled={customBeginning.length < 100 || customBeginning.length > 500} className="w-full text-lg font-medium transition-all shadow-lg py-7 hover:shadow-xl" size="lg">
+            <Button onClick={handleCustomBeginningSubmit} disabled={customBeginning.length < 100 || customBeginning.length > 500} className="w-full text-lg font-medium transition-all shadow-lg cursor-pointer py-7 hover:shadow-xl" size="lg">
               使用自定义开头
             </Button>
           </CardContent>

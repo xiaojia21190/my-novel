@@ -93,11 +93,19 @@ export function StoryContent({ storyContent, onGeneratePrompts, isGenerating }: 
         </CardHeader>
         <CardContent className="p-8 bg-card/50">
           <div className={`prose prose-lg max-w-none ${theme === "dark" ? "prose-invert" : ""}`}>
-            {storyContent.map((paragraph, index) => (
-              <p key={index} className={`leading-relaxed text-lg ${index === 0 ? "first-letter:text-6xl first-letter:font-bold first-letter:text-primary first-letter:mr-2 first-letter:float-left" : ""}`}>
-                {paragraph}
-              </p>
-            ))}
+            {storyContent.map((paragraph, index) => {
+              // 跳过空段落或仅包含空白字符的段落
+              if (!paragraph.trim()) return null;
+
+              // 处理段落，使其更加连贯
+              const isFirstParagraph = index === 0;
+
+              return (
+                <p key={index} className={`leading-relaxed text-lg ${isFirstParagraph ? "first-letter:text-6xl first-letter:font-bold first-letter:text-primary first-letter:mr-2 first-letter:float-left" : ""}`}>
+                  {paragraph}
+                </p>
+              );
+            })}
           </div>
         </CardContent>
         <CardFooter className="flex justify-center p-8 border-t bg-muted/40 border-border/30">

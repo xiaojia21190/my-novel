@@ -58,11 +58,22 @@ export default function Home() {
     try {
       setIsGenerating(true);
       setError(null);
+
+      // 记录当前的提示，但不直接显示在故事中
+      const currentPrompt = selectedPrompt;
+
+      // 保存当前故事内容
       const currentStory = storyContent.join("\n\n");
-      const newContent = await continueStory(currentStory, selectedPrompt);
-      setStoryContent([...storyContent, selectedPrompt, newContent]);
+
+      // 调用API继续故事，传递当前故事内容和选定的提示
+      const newContent = await continueStory(currentStory, currentPrompt);
+
+      // 只添加新生成的内容到故事数组，不添加提示信息
+      // 防止故事不连贯和提示信息泄露
+      setStoryContent([...storyContent, newContent]);
+
       // 生成新的提示选项
-      handleGeneratePrompts([...storyContent, selectedPrompt, newContent].join("\n\n"));
+      handleGeneratePrompts([...storyContent, newContent].join("\n\n"));
     } catch (error) {
       setError("继续故事失败，请重试");
       console.error("继续故事失败:", error);
@@ -108,12 +119,12 @@ export default function Home() {
               </Button>
             )}
 
-            <Button variant="outline" onClick={toggleHistory} className={`shadow-sm hover:shadow-md transition-all ${showHistory ? "bg-muted text-primary" : ""}`}>
+            <Button variant="outline" onClick={toggleHistory} className={`shadow-sm hover:shadow-md transition-all cursor-pointer ${showHistory ? "bg-muted text-primary" : ""}`}>
               <History className="w-5 h-5 mr-2" />
               历史
             </Button>
 
-            <Button variant="outline" onClick={toggleTheme} className="transition-all shadow-sm hover:shadow-md">
+            <Button variant="outline" onClick={toggleTheme} className="transition-all shadow-sm cursor-pointer hover:shadow-md">
               {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             </Button>
           </div>

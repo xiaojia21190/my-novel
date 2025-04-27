@@ -27,12 +27,12 @@ export function PromptSelector({ prompts, onSelectPrompt, isGenerating }: Prompt
         <CardContent className="p-8 bg-gradient-to-b from-background to-muted/20">
           <div className="grid gap-6">
             {prompts.map((prompt, index) => (
-              <Card key={index} className={`overflow-hidden transition-all duration-300 border-2 hover:shadow-xl ${isGenerating ? "opacity-60" : "hover:border-secondary/60"}`}>
-                <Button variant="ghost" className="flex items-center w-full h-auto gap-6 p-8 text-left rounded-none group hover:bg-secondary/5" onClick={() => onSelectPrompt(prompt)} disabled={isGenerating}>
+              <Card key={index} className={`cursor-pointer overflow-hidden transition-all duration-300 border-2 hover:shadow-xl ${isGenerating ? "opacity-60" : "hover:border-secondary/60"}`}>
+                <Button variant="ghost" className="flex items-center w-full h-auto gap-6 p-8 text-left rounded-none cursor-pointer group hover:bg-secondary/5" onClick={() => onSelectPrompt(prompt)} disabled={isGenerating}>
                   <div className="flex items-center justify-center w-16 h-16 transition-colors rounded-full shadow-md bg-gradient-to-br from-secondary/20 to-primary/10 text-secondary group-hover:from-secondary/30 group-hover:to-primary/20">{promptIcons[index % promptIcons.length]}</div>
-                  <div className="flex-1">
+                  <div className="flex-1 ">
                     <div className="relative pl-3 border-l-4 border-secondary/30">
-                      <p className="text-xl font-medium">{prompt}</p>
+                      <p className="text-xl font-medium break-words whitespace-pre-wrap">{prompt}</p>
                     </div>
                   </div>
                   <div className="transition-transform group-hover:translate-x-2">

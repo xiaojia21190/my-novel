@@ -1,5 +1,37 @@
 import { NextResponse } from 'next/server';
 
+/**
+ * 清洗生成的内容，移除可能的提示词泄露或指令信息
+ * @param content AI生成的原始内容
+ * @returns 清洗后的内容
+ */
+function sanitizeGeneratedContent(content: string): string {
+  if (!content) return '';
+
+  // 移除可能的提示词泄露模式
+  let sanitized = content
+    // 移除"提示："或"提示:"开头的内容
+    .replace(/^(提示[:：].*?)(?=\n|$)/gm, '')
+    // 移除"小说内容："或"小说内容:"开头的内容
+    .replace(/^(小说内容[:：].*?)(?=\n|$)/gm, '')
+    // 移除AI可能生成的系统指令相关内容
+    .replace(/^(作为一个创意小说写作助手|你是一个创意小说写作助手|我是一个创意小说写作助手).*?(?=\n|$)/gm, '')
+    // 移除"继续撰写故事"等指令片段
+    .replace(/^(继续撰写故事|请继续|下面是故事的下一部分)[:：]?/gm, '')
+    // 移除markdown格式的提示（使用兼容的多行匹配方式）
+    .replace(/```[\s\S]*?```/g, '')
+    // 移除可能的角色扮演引导
+    .replace(/^(下面我将|接下来我会|我会).*(?=\n|$)/gm, '');
+
+  // 修复多余的空行问题，将连续的2个以上换行符替换为2个
+  sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
+
+  // 修剪首尾空白字符
+  sanitized = sanitized.trim();
+
+  return sanitized;
+}
+
 export async function POST(req: Request) {
   try {
     const { story, prompt, task } = await req.json();
@@ -14,7 +46,7 @@ export async function POST(req: Request) {
     // 构建发送给 OpenAI 兼容服务的 messages 数组
     if (task === 'generate_prompts') {
       messages = [
-        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容，生成三个不同的、引人入胜的后续发展提示。每个提示应简短且能激发创作灵感，以列表形式（每项前加"-"）返回。提示应该富有想象力且引人入胜，展示不同的故事发展可能性。' },
+        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容，生成五个不同的、引人入胜的后续发展提示。每个提示应当包含足够的细节且能激发创作灵感，以列表形式（每项前加"-"）返回。提示应该富有想象力且引人入胜，展示不同的故事发展可能性。确保每个提示至少包含40-60个字的详细描述。' },
         { role: 'user', content: `小说内容：${story}` },
       ];
     } else if (task === 'continue_story') {
@@ -22,7 +54,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: '任务类型为 continue_story 时，缺少 prompt 字段' }, { status: 400 });
       }
       messages = [
-        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容和选择的提示，继续撰写故事。请直接返回故事的下一部分内容，使用生动的描述和对话，以保持读者的兴趣。注意保持故事的连贯性和前后风格一致。' },
+        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容和选择的提示，继续撰写故事。请直接返回故事的下一部分内容，生成至少1500字的篇幅，使用生动的描述、细节丰富的场景和深入的对话，以保持读者的兴趣。故事内容应当丰富而有深度，包含情节发展、人物刻画和环境描写。注意保持故事的连贯性和前后风格一致。' },
         { role: 'user', content: `小说内容：${story}\n\n提示：${prompt}` },
       ];
     } else {
@@ -30,7 +62,7 @@ export async function POST(req: Request) {
     }
 
     // 调用 OpenAI 兼容服务
-    const openaiResponse = await fetch(process.env.OPENAI_API_BASE_URL || 'YOUR_DEFAULT_OPENAI_ENDPOINT', {
+    const openaiResponse = await fetch(process.env.OPENAI_API_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -40,7 +72,7 @@ export async function POST(req: Request) {
         model: 'gemini-2.5-flash-preview-04-17', // 或者使用您兼容服务支持的模型
         messages: messages,
         temperature: 0.8, // 略微提高以增加创造性
-        max_tokens: 800, // 增加以获得更丰富的内容
+        max_tokens: 2000, // 增加以获得更丰富的内容
       }),
     });
 
@@ -68,20 +100,22 @@ export async function POST(req: Request) {
         .split('\n')
         .filter((line: string) => line.trim().startsWith('-'))
         .map((line: string) => line.replace(/^- /, '').trim())
-        .slice(0, 3);
+        .slice(0, 5);
 
       // 如果解析失败或提示数量不足，提供备用 prompts
-      if (output.length < 3) {
+      if (output.length < 5) {
         const backupPrompts = [
-          '主角决定探索未知领域，发现一个改变一切的秘密。',
-          '一个神秘陌生人出现，带来意外的消息和机遇。',
-          '突如其来的事件打破平静，迫使主角面对内心深处的恐惧。',
-          '一个意外的发现揭示了过去被隐藏的真相。',
-          '主角与对手之间的冲突达到高潮。',
+          '主角决定探索未知领域，发现一个改变一切的秘密，这个发现将彻底颠覆他们的世界观。',
+          '一个神秘陌生人出现，带来意外的消息和机遇，却也伴随着不可预见的危险和考验。',
+          '突如其来的事件打破平静，迫使主角面对内心深处的恐惧，并重新思考自己的人生目标和价值观。',
+          '一个意外的发现揭示了过去被隐藏的真相，让主角开始质疑自己所知道的一切和信任的人。',
+          '主角与对手之间的冲突达到高潮，迫使双方在关键时刻做出可能改变一切的决定和牺牲。',
+          '主角遇到人生中的重要抉择，每一条路都有诱人的前景，但也隐藏着各自的风险和代价。',
+          '一次意外的旅程将主角带到陌生的环境，在那里他们遇到了改变人生轨迹的关键人物和事件。',
         ];
 
         // 填充缺少的提示
-        while (output.length < 3) {
+        while (output.length < 5) {
           const randomIndex = Math.floor(Math.random() * backupPrompts.length);
           const backupPrompt = backupPrompts[randomIndex];
           if (!output.includes(backupPrompt)) {
@@ -97,8 +131,8 @@ export async function POST(req: Request) {
       });
 
     } else if (task === 'continue_story') {
-      // 将生成的故事部分附加到现有故事后面
-      output = responseContent.trim();
+      // 将生成的故事部分附加到现有故事后面，应用清洗函数处理内容
+      output = sanitizeGeneratedContent(responseContent.trim());
       return NextResponse.json({
         story: output,
         success: true
