@@ -73,24 +73,41 @@ export default function Home() {
       const lastCharOfLastParagraph = lastParagraph[lastParagraph.length - 1];
       const isCompleteEnding = /[。！？.!?]$/.test(lastCharOfLastParagraph);
 
-      // 检查新内容的开头是否是句子的延续
-      const firstCharOfNewContent = newContent[0];
-      const isLowerCaseOrPunctuation = /^[a-z,，;；、]$/.test(firstCharOfNewContent);
+      // 检查重复内容：查看新内容的开头是否与原内容的结尾重复
+      const lastFewChars = lastParagraph.slice(-30).trim(); // 获取最后30个字符
+      const firstFewChars = newContent.slice(0, 40).trim(); // 获取开头40个字符
 
-      // 如果上一个段落句子未完成，并且新内容似乎是一个延续，那么将它们连接而不是添加为新段落
-      if (!isCompleteEnding && isLowerCaseOrPunctuation) {
+      // 如果有明显重复，截断重复部分
+      let processedNewContent = newContent;
+      if (lastFewChars && firstFewChars) {
+        // 检查重复的片段
+        for (let i = 5; i <= Math.min(lastFewChars.length, 20); i++) {
+          const endPart = lastFewChars.slice(-i);
+          if (firstFewChars.startsWith(endPart)) {
+            // 发现重复，移除新内容开头的重复部分
+            processedNewContent = newContent.slice(endPart.length);
+            console.log(`检测到重复内容，移除了${endPart.length}个字符`);
+            break;
+          }
+        }
+      }
+
+      // 判断新内容是否为上一句的延续
+      // 在中文语境下，如果上一句没有完整结束（没有句号等标点），则认为新内容是其延续
+      // 不再检查首字符是否为小写或标点符号，只要上一句没有完整结束，就视为连续内容
+      if (!isCompleteEnding) {
         // 更新最后一个段落
         const updatedStoryContent = [...storyContent];
-        updatedStoryContent[updatedStoryContent.length - 1] = lastParagraph + " " + newContent;
+        updatedStoryContent[updatedStoryContent.length - 1] = lastParagraph + " " + processedNewContent;
         setStoryContent(updatedStoryContent);
       } else {
         // 只添加新生成的内容到故事数组，不添加提示信息
         // 防止故事不连贯和提示信息泄露
-        setStoryContent([...storyContent, newContent]);
+        setStoryContent([...storyContent, processedNewContent]);
       }
 
       // 生成新的提示选项
-      handleGeneratePrompts([...storyContent, newContent].join("\n\n"));
+      handleGeneratePrompts([...storyContent, processedNewContent].join("\n\n"));
     } catch (error) {
       setError("继续故事失败，请重试");
       console.error("继续故事失败:", error);
@@ -175,7 +192,7 @@ export default function Home() {
 
       <footer className="py-3 border-t border-border/40 bg-background/90 backdrop-blur-sm">
         <div className="px-10 text-center text-muted-foreground">
-          <p>© 2023 AI互动小说 版权所有</p>
+          <p>© 2025 AI互动小说 版权所有</p>
         </div>
       </footer>
     </main>

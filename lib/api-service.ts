@@ -42,13 +42,37 @@ function cleanStoryContent(content: string): string {
   if (!content) return '';
 
   // 移除常见引导语模式
-  return content
+  let cleanedContent = content
     // 移除"好的，根据..."等开头
     .replace(/^(好的|嗯|是的|没问题)[,，].*?(根据|基于).*?(提示|内容).*?[:：]/i, '')
     // 移除"继续撰写故事..."等开头
     .replace(/^(继续撰写|下面是|这是)(故事|小说).*?[:：]?/i, '')
     // 修剪空白
     .trim();
+
+  // 检测并修复常见的内容重复问题
+  // 处理类似"变得超来越强，光芒也越来越强"这样的重复表述
+  cleanedContent = cleanedContent
+    // 修复"变得超来越X"这种语法错误为"变得越来越X"
+    .replace(/变得超来越(\w+)/g, '变得越来越$1')
+    // 处理相邻重复的短语
+    .replace(/([，。！？；：、\s])([^，。！？；：、\s]{2,5})\1\2/g, '$1$2')
+    // 处理"越来越X，X也越来越X"这样的重复
+    .replace(/越来越(\w+)，[^，。！？]+越来越\1/g, '越来越$1');
+
+  // 确保内容的完整性，特别是中文句子的开头
+  // 检查是否有常见的中文单词被部分截断的情况
+  const commonChineseWords = ['的', '地', '得', '和', '在', '了', '是', '我', '你', '他', '她', '它', '们', '阔'];
+
+  for (const word of commonChineseWords) {
+    // 如果内容以这些词开头，可能是不完整的句子，但我们保留，由页面组件处理连接
+    if (cleanedContent.startsWith(word)) {
+      console.log(`检测到可能的不完整句子，以"${word}"开头`);
+      break;
+    }
+  }
+
+  return cleanedContent;
 }
 
 /**

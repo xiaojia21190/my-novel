@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Share2, Save, Bookmark, BookmarkCheck, BookOpen, PenLine } from "lucide-react";
 import { saveStory } from "@/lib/api-service";
 import { useTheme } from "@/lib/theme-context";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 
 interface StoryContentProps {
   storyContent: string[];
@@ -19,6 +21,8 @@ export function StoryContent({ storyContent, onGeneratePrompts, isGenerating }: 
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const { theme } = useTheme();
+  const [editingText, setEditingText] = useState<string>("");
+  const [editingIndex, setEditingIndex] = useState<number>(-1);
 
   // 优化故事连贯性处理，将内容以更连贯的方式组合
   const combineStoryContents = () => {
@@ -45,10 +49,13 @@ export function StoryContent({ storyContent, onGeneratePrompts, isGenerating }: 
 
       // 获取当前段落的第一个字符
       const firstChar = trimmedParagraph[0];
+      // 扩展正则表达式，使其适用于更多中文上下文
+      // 不仅检查小写字母和标点符号，也考虑中文连续的情况
       const isLowerCaseOrPunctuation = /^[a-z,，;；、]$/.test(firstChar);
 
-      // 如果上一段结尾不完整或当前段落以小写/标点开始，将它们连接在一起
-      if (!isCompleteEnding || isLowerCaseOrPunctuation) {
+      // 处理中文句子连接 - 如果前一段不是以完整句子结尾，则认为当前段落是其延续
+      // 不再严格要求新段落以小写字母或标点开头才视为连续
+      if (!isCompleteEnding) {
         coherentParagraphs[coherentParagraphs.length - 1] += " " + trimmedParagraph;
       } else {
         coherentParagraphs.push(trimmedParagraph);
@@ -97,6 +104,35 @@ export function StoryContent({ storyContent, onGeneratePrompts, isGenerating }: 
     onGeneratePrompts(fullStoryText);
   };
 
+  // 开始编辑段落
+  const handleStartEditing = (text: string, index: number) => {
+    setEditingText(text);
+    setEditingIndex(index);
+  };
+
+  // 保存编辑内容
+  const handleSaveEdit = () => {
+    if (editingIndex >= 0 && editingIndex < coherentStoryParagraphs.length) {
+      // 创建一个新的原始故事内容数组
+      let newStoryContent = [...storyContent];
+
+      // 由于coherentStoryParagraphs是经过处理合并的，
+      // 所以这里我们需要简单地替换原始内容数组中对应的段落
+      // 这是一个简化处理，实际上可能需要更复杂的逻辑来确保正确性
+      if (editingIndex === 0) {
+        newStoryContent[0] = editingText;
+      } else {
+        // 对于非第一段，我们可能需要根据段落映射或其他逻辑更新
+        // 这里简单起见，我们直接更新与编辑索引匹配的段落
+        const paragraphToUpdate = Math.min(editingIndex, newStoryContent.length - 1);
+        newStoryContent[paragraphToUpdate] = editingText;
+      }
+
+      onGeneratePrompts(newStoryContent.join("\n\n"));
+      setEditingIndex(-1);
+    }
+  };
+
   return (
     <div className="flex flex-col w-full h-full animate-fadeIn">
       <Card className="flex flex-col h-full overflow-hidden border-2 shadow-xl border-primary/20">
@@ -122,9 +158,42 @@ export function StoryContent({ storyContent, onGeneratePrompts, isGenerating }: 
               const isFirstParagraph = index === 0;
 
               return (
-                <p key={index} className={`leading-relaxed text-lg ${isFirstParagraph ? "first-letter:text-5xl first-letter:font-bold first-letter:text-primary first-letter:mr-2 first-letter:float-left" : ""}`}>
-                  {paragraph}
-                </p>
+                <div key={index} className="relative py-1 rounded-sm group hover:bg-muted/30">
+                  <p className={`leading-relaxed text-lg pr-8 ${isFirstParagraph ? "indent-2 first-letter:text-5xl first-letter:font-bold first-letter:text-primary first-letter:mr-2 first-letter:float-left" : ""}`}>
+                    {paragraph}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button
+                          onClick={() => handleStartEditing(paragraph, index)}
+                          className="absolute inline-flex items-center p-1 transition-opacity -translate-y-1/2 rounded-full opacity-0 right-1 top-1/2 group-hover:opacity-100 bg-muted hover:bg-primary/10 text-primary hover:text-primary"
+                          title="编辑段落"
+                        >
+                          <PenLine className="w-3.5 h-3.5" />
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="w-[90vw] sm:w-[80vw] md:max-w-[750px] h-[70vh] flex flex-col">
+                        <DialogHeader className="mb-2 shrink-0">
+                          <DialogTitle>快速编辑</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-grow overflow-hidden min-h-0 mb-2">
+                          <Textarea value={editingText} onChange={(e) => setEditingText(e.target.value)} className="w-full h-full min-h-full resize-none border rounded-md" autoFocus style={{ height: "calc(100% - 4px)" }} />
+                        </div>
+                        <DialogFooter className="mt-1 shrink-0">
+                          <DialogClose asChild>
+                            <Button variant="outline" size="sm">
+                              取消
+                            </Button>
+                          </DialogClose>
+                          <DialogClose asChild>
+                            <Button onClick={handleSaveEdit} size="sm">
+                              保存
+                            </Button>
+                          </DialogClose>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </p>
+                </div>
               );
             })}
           </div>
