@@ -34,6 +34,24 @@ export async function generatePrompts(story: string): Promise<string[]> {
 }
 
 /**
+ * 前端清洗故事内容，移除可能遗漏的提示词
+ * @param content 故事内容
+ * @returns 清洗后的内容
+ */
+function cleanStoryContent(content: string): string {
+  if (!content) return '';
+
+  // 移除常见引导语模式
+  return content
+    // 移除"好的，根据..."等开头
+    .replace(/^(好的|嗯|是的|没问题)[,，].*?(根据|基于).*?(提示|内容).*?[:：]/i, '')
+    // 移除"继续撰写故事..."等开头
+    .replace(/^(继续撰写|下面是|这是)(故事|小说).*?[:：]?/i, '')
+    // 修剪空白
+    .trim();
+}
+
+/**
  * 根据提示继续故事
  * @param story 当前故事内容
  * @param prompt 选择的提示
@@ -49,7 +67,9 @@ export async function continueStory(story: string, prompt: string): Promise<stri
     throw new Error(response.error);
   }
 
-  return response.story || story;
+  // 应用前端清洗作为后端清洗的备份
+  const storyContent = response.story || story;
+  return cleanStoryContent(storyContent);
 }
 
 /**

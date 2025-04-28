@@ -21,13 +21,38 @@ function sanitizeGeneratedContent(content: string): string {
     // 移除markdown格式的提示（使用兼容的多行匹配方式）
     .replace(/```[\s\S]*?```/g, '')
     // 移除可能的角色扮演引导
-    .replace(/^(下面我将|接下来我会|我会).*(?=\n|$)/gm, '');
+    .replace(/^(下面我将|接下来我会|我会).*(?=\n|$)/gm, '')
+    // 移除"好的，根据您提供的..."等常见引导语
+    .replace(/^(好的|嗯|是的|没问题)，.*?(根据|基于|按照)(您|你|用户)(提供|给出)的.*?(提示|内容|故事).*?(我将|我会|下面|接下来)(继续|撰写|创作).*?[:：]?/i, '')
+    // 移除更多变体的继续撰写故事引导语
+    .replace(/^.{0,30}(继续撰写|续写|撰写|写)(故事|小说)的?(下一部分|接下来的部分)?[:：]?/i, '')
+    // 移除生硬的故事开头指示
+    .replace(/^故事(继续|开始|接下来)[:：]?/i, '')
+    // 通用的删除包含"提示"和"内容"的整行
+    .replace(/^.*?(提示|内容|故事|续写|生成)(的|地|了|是|：|:).*?[\n\r]/i, '');
 
   // 修复多余的空行问题，将连续的2个以上换行符替换为2个
   sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
 
   // 修剪首尾空白字符
   sanitized = sanitized.trim();
+
+  // 确保不会截断句子
+  if (sanitized.length > 0) {
+    // 如果最后一个字符不是标点符号，并且不是完整句子结尾，添加省略号表示连续
+    const lastChar = sanitized.charAt(sanitized.length - 1);
+    const completeEndingPattern = /[。！？.!?]$/;
+    if (!completeEndingPattern.test(lastChar)) {
+      // 保持原样，不添加额外字符，因为这可能是中断的句子需要与下一段连接
+    }
+
+    // 如果首字符是小写字母或者是标点符号，可能是前一个句子的延续
+    const firstChar = sanitized.charAt(0);
+    const lowerCaseOrPunctuation = /^[a-z,，;；、]$/;
+    if (lowerCaseOrPunctuation.test(firstChar)) {
+      // 这是前一个句子的延续，保持原样
+    }
+  }
 
   return sanitized;
 }
@@ -46,7 +71,7 @@ export async function POST(req: Request) {
     // 构建发送给 OpenAI 兼容服务的 messages 数组
     if (task === 'generate_prompts') {
       messages = [
-        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容，生成五个不同的、引人入胜的后续发展提示。每个提示应当包含足够的细节且能激发创作灵感，以列表形式（每项前加"-"）返回。提示应该富有想象力且引人入胜，展示不同的故事发展可能性。确保每个提示至少包含40-60个字的详细描述。' },
+        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容，生成三个不同的、引人入胜的后续发展提示。每个提示应当包含足够的细节且能激发创作灵感，以列表形式（每项前加"-"）返回。提示应该富有想象力且引人入胜，展示不同的故事发展可能性。确保每个提示至少包含40-60个字的详细描述。' },
         { role: 'user', content: `小说内容：${story}` },
       ];
     } else if (task === 'continue_story') {
@@ -54,8 +79,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: '任务类型为 continue_story 时，缺少 prompt 字段' }, { status: 400 });
       }
       messages = [
-        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容和选择的提示，继续撰写故事。请直接返回故事的下一部分内容，生成至少1500字的篇幅，使用生动的描述、细节丰富的场景和深入的对话，以保持读者的兴趣。故事内容应当丰富而有深度，包含情节发展、人物刻画和环境描写。注意保持故事的连贯性和前后风格一致。' },
-        { role: 'user', content: `小说内容：${story}\n\n提示：${prompt}` },
+        { role: 'system', content: '你是一个创意小说写作助手，请根据用户提供的小说内容和选择的提示，继续撰写故事。请直接返回故事的下一部分内容，不要包含任何引导语、解释或前缀（如"好的"、"继续撰写故事"等）。生成至少1500字的篇幅，使用生动的描述、细节丰富的场景和深入的对话，以保持读者的兴趣。故事内容应当丰富而有深度，包含情节发展、人物刻画和环境描写。注意保持故事的连贯性和前后风格一致。特别要注意，你必须确保从前文的最后一句话自然接续，不要出现断句或不连贯的情况，比如前文以"我沿着书"结尾，你应该直接从"我沿着书架..."或者类似的内容继续，保证阅读流畅性。重要提示：直接从故事内容开始，不要包含任何形式的引导语或提示。' },
+        { role: 'user', content: `小说内容：${story}\n\n提示：${prompt}\n\n请直接生成故事内容，不要添加任何解释或引导语。确保从前文的最后一个词或句子自然衔接，保持故事流畅连贯。` },
       ];
     } else {
       return NextResponse.json({ error: '无效的 task 类型' }, { status: 400 });
@@ -71,7 +96,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: 'gemini-2.5-flash-preview-04-17', // 或者使用您兼容服务支持的模型
         messages: messages,
-        temperature: 0.8, // 略微提高以增加创造性
+        temperature: 0.7, // 调整温度，平衡创造性和指令遵循性
         max_tokens: 2000, // 增加以获得更丰富的内容
       }),
     });
@@ -100,10 +125,10 @@ export async function POST(req: Request) {
         .split('\n')
         .filter((line: string) => line.trim().startsWith('-'))
         .map((line: string) => line.replace(/^- /, '').trim())
-        .slice(0, 5);
+        .slice(0, 3);
 
       // 如果解析失败或提示数量不足，提供备用 prompts
-      if (output.length < 5) {
+      if (output.length < 3) {
         const backupPrompts = [
           '主角决定探索未知领域，发现一个改变一切的秘密，这个发现将彻底颠覆他们的世界观。',
           '一个神秘陌生人出现，带来意外的消息和机遇，却也伴随着不可预见的危险和考验。',
@@ -115,7 +140,7 @@ export async function POST(req: Request) {
         ];
 
         // 填充缺少的提示
-        while (output.length < 5) {
+        while (output.length < 3) {
           const randomIndex = Math.floor(Math.random() * backupPrompts.length);
           const backupPrompt = backupPrompts[randomIndex];
           if (!output.includes(backupPrompt)) {

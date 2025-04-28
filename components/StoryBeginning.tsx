@@ -64,35 +64,9 @@ export function StoryBeginning({ onSelectBeginning }: StoryBeginningProps) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12 animate-fadeIn">
-      {/* 预设开头 */}
-      <div>
-        <h2 className="flex items-center justify-center mb-8 text-3xl font-bold text-center">
-          <BookOpen className="w-8 h-8 mr-3 text-primary" />
-          选择一个故事开头
-        </h2>
-        <div className="grid grid-cols-3 gap-8">
-          {presetBeginnings.map((beginning) => (
-            <Card key={beginning.id} className="overflow-hidden transition-all duration-300 hover:shadow-2xl hover:translate-y-[-4px] border-2 bg-card/80 cursor-pointer">
-              <CardContent className="p-0">
-                <div className="flex items-center px-6 py-4 border-b bg-gradient-to-r from-primary/20 to-secondary/10">
-                  <span className="mr-3 text-3xl">{beginning.icon}</span>
-                  <h3 className="text-xl font-semibold text-primary">{beginning.title}</h3>
-                </div>
-                <div className="p-6">
-                  <p className="m-10 text-base leading-relaxed text-muted-foreground">{beginning.content}</p>
-                  <Button className="w-full py-6 mt-4 text-base shadow-md" onClick={() => onSelectBeginning(beginning.content)}>
-                    选择此开头
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      {/* 分隔线 */}
-      <div className="relative">
+    <div className="mx-auto max-w-7xl animate-fadeIn">
+      {/* 水平分隔线 (仅在移动端显示) */}
+      <div className="relative block mb-12 lg:hidden">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-border"></div>
         </div>
@@ -101,49 +75,81 @@ export function StoryBeginning({ onSelectBeginning }: StoryBeginningProps) {
         </div>
       </div>
 
-      {/* 自定义开头 */}
-      <div>
-        <h2 className="flex items-center justify-center mb-8 text-3xl font-bold text-center">
-          <PenLine className="w-8 h-8 mr-3 text-secondary" />
-          创作自定义开头
-        </h2>
-        <Card className="overflow-hidden border-2 shadow-xl bg-card/80">
-          <CardContent className="p-8 space-y-8">
-            <div className="space-y-4">
-              <Label htmlFor="customBeginning" className="flex items-center text-lg font-medium">
-                <Sparkles className="w-5 h-5 mr-2 text-primary" />
-                你的故事开头（100-500字）
-              </Label>
-              <Textarea
-                id="customBeginning"
-                value={customBeginning}
-                onChange={(e) => {
-                  setCustomBeginning(e.target.value);
-                  if (customError) setCustomError(null);
-                }}
-                placeholder="在这里开始你的故事..."
-                className="min-h-[240px] resize-y p-5 text-lg border-2 focus:border-primary/30 shadow-md"
-              />
-              {customError && <p className="text-base font-medium text-destructive">{customError}</p>}
-              <div className="p-4 rounded-md bg-muted/30">
-                <p className="flex items-center justify-between text-base">
-                  <span>
-                    当前字数: <span className="font-medium">{customBeginning.length}</span>
-                  </span>
-                  <span className={customBeginning.length < 100 || customBeginning.length > 500 ? "text-destructive font-medium" : "text-success font-medium"}>
-                    {customBeginning.length < 100 ? "至少还需" + (100 - customBeginning.length) + "字" : customBeginning.length > 500 ? "超出" + (customBeginning.length - 500) + "字" : "字数合适"}
-                  </span>
-                </p>
-                <div className="w-full h-3 mt-3 overflow-hidden rounded-full bg-muted">
-                  <div className={`h-full rounded-full transition-all ${customBeginning.length < 100 ? "bg-destructive/50 w-[" + customBeginning.length / 5 + "%]" : customBeginning.length > 500 ? "bg-destructive w-full" : "bg-success w-[" + customBeginning.length / 5 + "%]"}`}></div>
+      {/* 左右两栏布局 */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-12">
+        {/* 左侧 - 预设开头 */}
+        <div className="mb-12 lg:w-1/2 lg:mb-0">
+          <h2 className="flex items-center justify-center mb-8 text-3xl font-bold text-center">
+            <BookOpen className="w-8 h-8 mr-3 text-primary" />
+            选择一个故事开头
+          </h2>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {presetBeginnings.map((beginning) => (
+              <Card key={beginning.id} className="overflow-hidden transition-all duration-300 hover:shadow-2xl hover:translate-y-[-4px] border-2 bg-card/80 cursor-pointer">
+                <CardContent className="p-0">
+                  <div className="flex items-center px-6 py-4 border-b bg-gradient-to-r from-primary/20 to-secondary/10">
+                    <span className="mr-3 text-3xl">{beginning.icon}</span>
+                    <h3 className="text-xl font-semibold text-primary">{beginning.title}</h3>
+                  </div>
+                  <div className="p-6">
+                    <p className="text-base leading-relaxed text-muted-foreground">{beginning.content}</p>
+                    <Button className="w-full py-6 mt-4 text-base shadow-md" onClick={() => onSelectBeginning(beginning.content)}>
+                      选择此开头
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* 中间分隔线 (仅在桌面显示) */}
+        <div className="hidden lg:block lg:border-l lg:border-border"></div>
+
+        {/* 右侧 - 自定义开头 */}
+        <div className="lg:w-1/2">
+          <h2 className="flex items-center justify-center mb-8 text-3xl font-bold text-center">
+            <PenLine className="w-8 h-8 mr-3 text-secondary" />
+            创作自定义开头
+          </h2>
+          <Card className="overflow-hidden border-2 shadow-xl bg-card/80">
+            <CardContent className="p-8 space-y-8">
+              <div className="space-y-4">
+                <Label htmlFor="customBeginning" className="flex items-center text-lg font-medium">
+                  <Sparkles className="w-5 h-5 mr-2 text-primary" />
+                  你的故事开头（100-500字）
+                </Label>
+                <Textarea
+                  id="customBeginning"
+                  value={customBeginning}
+                  onChange={(e) => {
+                    setCustomBeginning(e.target.value);
+                    if (customError) setCustomError(null);
+                  }}
+                  placeholder="在这里开始你的故事..."
+                  className="min-h-[240px] resize-y p-5 text-lg border-2 focus:border-primary/30 shadow-md"
+                />
+                {customError && <p className="text-base font-medium text-destructive">{customError}</p>}
+                <div className="p-4 rounded-md bg-muted/30">
+                  <p className="flex items-center justify-between text-base">
+                    <span>
+                      当前字数: <span className="font-medium">{customBeginning.length}</span>
+                    </span>
+                    <span className={customBeginning.length < 100 || customBeginning.length > 500 ? "text-destructive font-medium" : "text-success font-medium"}>
+                      {customBeginning.length < 100 ? "至少还需" + (100 - customBeginning.length) + "字" : customBeginning.length > 500 ? "超出" + (customBeginning.length - 500) + "字" : "字数合适"}
+                    </span>
+                  </p>
+                  <div className="w-full h-3 mt-3 overflow-hidden rounded-full bg-muted">
+                    <div className={`h-full rounded-full transition-all ${customBeginning.length < 100 ? "bg-destructive/50 w-[" + customBeginning.length / 5 + "%]" : customBeginning.length > 500 ? "bg-destructive w-full" : "bg-success w-[" + customBeginning.length / 5 + "%]"}`}></div>
+                  </div>
                 </div>
               </div>
-            </div>
-            <Button onClick={handleCustomBeginningSubmit} disabled={customBeginning.length < 100 || customBeginning.length > 500} className="w-full text-lg font-medium transition-all shadow-lg cursor-pointer py-7 hover:shadow-xl" size="lg">
-              使用自定义开头
-            </Button>
-          </CardContent>
-        </Card>
+              <Button onClick={handleCustomBeginningSubmit} disabled={customBeginning.length < 100 || customBeginning.length > 500} className="w-full text-lg font-medium transition-all shadow-lg cursor-pointer py-7 hover:shadow-xl" size="lg">
+                使用自定义开头
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

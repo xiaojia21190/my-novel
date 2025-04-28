@@ -4,8 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StoryBeginning } from "@/components/StoryBeginning";
-import { StoryContent } from "@/components/StoryContent";
-import { PromptSelector } from "@/components/PromptSelector";
+import { StoryInterface } from "@/components/StoryInterface";
 import { StoryHistory } from "@/components/StoryHistory";
 import { useTheme } from "@/lib/theme-context";
 import { generatePrompts, continueStory, StoredStory } from "@/lib/api-service";
@@ -62,15 +61,33 @@ export default function Home() {
       // 记录当前的提示，但不直接显示在故事中
       const currentPrompt = selectedPrompt;
 
+      // 确保我们使用完整的故事内容，保持连贯性
       // 保存当前故事内容
       const currentStory = storyContent.join("\n\n");
 
       // 调用API继续故事，传递当前故事内容和选定的提示
       const newContent = await continueStory(currentStory, currentPrompt);
 
-      // 只添加新生成的内容到故事数组，不添加提示信息
-      // 防止故事不连贯和提示信息泄露
-      setStoryContent([...storyContent, newContent]);
+      // 检查最后一个段落是否有未完成的句子
+      const lastParagraph = storyContent[storyContent.length - 1];
+      const lastCharOfLastParagraph = lastParagraph[lastParagraph.length - 1];
+      const isCompleteEnding = /[。！？.!?]$/.test(lastCharOfLastParagraph);
+
+      // 检查新内容的开头是否是句子的延续
+      const firstCharOfNewContent = newContent[0];
+      const isLowerCaseOrPunctuation = /^[a-z,，;；、]$/.test(firstCharOfNewContent);
+
+      // 如果上一个段落句子未完成，并且新内容似乎是一个延续，那么将它们连接而不是添加为新段落
+      if (!isCompleteEnding && isLowerCaseOrPunctuation) {
+        // 更新最后一个段落
+        const updatedStoryContent = [...storyContent];
+        updatedStoryContent[updatedStoryContent.length - 1] = lastParagraph + " " + newContent;
+        setStoryContent(updatedStoryContent);
+      } else {
+        // 只添加新生成的内容到故事数组，不添加提示信息
+        // 防止故事不连贯和提示信息泄露
+        setStoryContent([...storyContent, newContent]);
+      }
 
       // 生成新的提示选项
       handleGeneratePrompts([...storyContent, newContent].join("\n\n"));
@@ -102,13 +119,13 @@ export default function Home() {
   };
 
   return (
-    <main className="flex flex-col w-full min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <main className="flex flex-col w-full h-screen overflow-hidden bg-gradient-to-b from-background to-muted/20">
       {/* 导航栏 */}
-      <header className="sticky top-0 z-10 py-4 mb-10 border-b bg-background/90 backdrop-blur-sm border-border/40">
+      <header className="sticky top-0 z-10 py-3 border-b bg-background/90 backdrop-blur-sm border-border/40">
         <div className="flex items-center justify-between px-10 mx-auto">
           <div className="flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-primary" />
-            <span className="text-2xl font-bold text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text">AI互动小说</span>
+            <BookOpen className="w-7 h-7 text-primary" />
+            <span className="text-xl font-bold text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text">AI互动小说</span>
           </div>
 
           <div className="flex gap-4">
@@ -131,39 +148,32 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex-1 w-full px-10 mx-auto mb-10">
+      <div className="flex flex-col flex-1 w-full px-10 mx-auto overflow-hidden">
         {/* 错误提示 */}
         {error && (
-          <Card className="mb-8 shadow-md border-destructive bg-destructive/10 animate-shake">
+          <Card className="mb-4 shadow-md border-destructive bg-destructive/10 animate-shake">
             <CardContent className="p-4 font-medium text-destructive">{error}</CardContent>
           </Card>
         )}
 
         {/* 内容主体 */}
-        <div className="flex flex-col items-center w-full">
+        <div className="flex flex-col items-center w-full h-full overflow-hidden">
           {showHistory && <StoryHistory onSelectStory={handleSelectFromHistory} onClose={() => setShowHistory(false)} />}
 
           {!selectedBeginning && !showHistory && (
-            <div className="w-full mx-auto mb-12 text-center">
-              <h1 className="pb-4 text-5xl font-bold tracking-tight text-transparent bg-gradient-to-r from-secondary to-primary bg-clip-text">开始你的冒险故事</h1>
-              <p className="mx-auto mt-5 text-xl text-muted-foreground">创建专属故事，每一个选择都将引领你走向不同的结局</p>
+            <div className="w-full mx-auto mb-8 text-center">
+              <h1 className="pb-2 text-4xl font-bold tracking-tight text-transparent bg-gradient-to-r from-secondary to-primary bg-clip-text">开始你的冒险故事</h1>
+              <p className="mx-auto mt-3 text-lg text-muted-foreground">创建专属故事，每一个选择都将引领你走向不同的结局</p>
             </div>
           )}
 
           {!selectedBeginning && !showHistory && <StoryBeginning onSelectBeginning={handleSelectBeginning} />}
 
-          {selectedBeginning && !showHistory && (
-            <>
-              <div className="mb-8">
-                <StoryContent storyContent={storyContent} onGeneratePrompts={handleGeneratePrompts} isGenerating={isGenerating} />
-              </div>
-              <PromptSelector prompts={prompts} onSelectPrompt={handleSelectPrompt} isGenerating={isGenerating} />
-            </>
-          )}
+          {selectedBeginning && !showHistory && <StoryInterface storyContent={storyContent} prompts={prompts} isGenerating={isGenerating} onGeneratePrompts={handleGeneratePrompts} onSelectPrompt={handleSelectPrompt} />}
         </div>
       </div>
 
-      <footer className="py-6 border-t border-border/40 bg-background/90 backdrop-blur-sm">
+      <footer className="py-3 border-t border-border/40 bg-background/90 backdrop-blur-sm">
         <div className="px-10 text-center text-muted-foreground">
           <p>© 2023 AI互动小说 版权所有</p>
         </div>
