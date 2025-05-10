@@ -175,8 +175,8 @@ export function StoryContent({ storyContent, onGeneratePrompts, isGenerating }: 
                         <DialogHeader className="mb-2 shrink-0">
                           <DialogTitle>快速编辑</DialogTitle>
                         </DialogHeader>
-                        <div className="flex-grow overflow-hidden min-h-0 mb-2">
-                          <Textarea value={editingText} onChange={(e) => setEditingText(e.target.value)} className="w-full h-full min-h-full resize-none border rounded-md" autoFocus style={{ height: "calc(100% - 4px)" }} />
+                        <div className="flex-grow min-h-0 mb-2 overflow-hidden">
+                          <Textarea value={editingText} onChange={(e) => setEditingText(e.target.value)} className="w-full h-full min-h-full border rounded-md resize-none" autoFocus style={{ height: "calc(100% - 4px)" }} />
                         </div>
                         <DialogFooter className="mt-1 shrink-0">
                           <DialogClose asChild>

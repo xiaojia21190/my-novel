@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getStoredStories, deleteStory, StoredStory } from "@/lib/api-service";
-import { Clock, Trash2, Share2, ArrowRight } from "lucide-react";
+import { getAllStories, deleteStory, StoredStory } from "@/lib/api-service";
+import { Clock, Trash2, Share2, ArrowRight, CloudOff } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
 
 interface StoryHistoryProps {
   onSelectStory?: (story: StoredStory) => void;
@@ -14,12 +15,24 @@ interface StoryHistoryProps {
 export function StoryHistory({ onSelectStory, onClose }: StoryHistoryProps) {
   const [stories, setStories] = useState<StoredStory[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { isLoaded, isSignedIn } = useAuth();
 
   // 加载保存的故事
   useEffect(() => {
-    const loadStories = () => {
-      const storedStories = getStoredStories();
-      setStories(storedStories.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+    const loadStories = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const allStories = await getAllStories();
+        setStories(allStories.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+      } catch (err) {
+        console.error("加载故事失败:", err);
+        setError("无法加载故事历史，请稍后重试");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     loadStories();
@@ -33,12 +46,18 @@ export function StoryHistory({ onSelectStory, onClose }: StoryHistoryProps) {
 
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
+  }, [isSignedIn]); // 当登录状态变化时重新加载
 
   // 删除故事
-  const handleDeleteStory = (id: string) => {
-    if (deleteStory(id)) {
-      setStories((prev) => prev.filter((story) => story.id !== id));
+  const handleDeleteStory = async (id: string) => {
+    try {
+      const success = await deleteStory(id);
+      if (success) {
+        setStories((prev) => prev.filter((story) => story.id !== id));
+      }
+    } catch (err) {
+      console.error("删除故事失败:", err);
+      setError("删除故事失败，请稍后重试");
     }
   };
 
@@ -86,11 +105,17 @@ export function StoryHistory({ onSelectStory, onClose }: StoryHistoryProps) {
   return (
     <div className="w-full animate-fadeIn">
       <Card className="border-2 shadow-xl border-primary/20">
-        <CardHeader className="bg-muted/40 py-6">
+        <CardHeader className="py-6 bg-muted/40">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-3 text-2xl">
               <Clock className="w-7 h-7 text-primary" />
               故事历史
+              {isLoaded && !isSignedIn && (
+                <span className="flex items-center text-sm font-normal text-muted-foreground">
+                  <CloudOff className="w-4 h-4 mr-1" />
+                  未登录，仅显示本地故事
+                </span>
+              )}
             </CardTitle>
             {onClose && (
               <Button variant="ghost" size="lg" onClick={onClose}>
@@ -100,12 +125,27 @@ export function StoryHistory({ onSelectStory, onClose }: StoryHistoryProps) {
           </div>
         </CardHeader>
         <CardContent className="p-8">
-          {stories.length === 0 ? (
-            <p className="py-12 text-center text-xl text-muted-foreground">暂无保存的故事历史</p>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-8 h-8 border-4 rounded-full border-primary border-t-transparent animate-spin"></div>
+              <span className="ml-3 text-lg text-muted-foreground">正在加载故事...</span>
+            </div>
+          ) : error ? (
+            <div className="py-8 text-center">
+              <p className="text-destructive">{error}</p>
+              <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+                重试
+              </Button>
+            </div>
+          ) : stories.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-xl text-muted-foreground">暂无保存的故事历史</p>
+              {isLoaded && !isSignedIn && <p className="mt-2 text-sm text-muted-foreground">登录后可以在不同设备间同步你的故事</p>}
+            </div>
           ) : (
             <div className="grid gap-6">
               {stories.map((story) => (
-                <Card key={story.id} className="overflow-hidden border-2 border-muted-foreground/20 hover:shadow-lg transition-all">
+                <Card key={story.id} className="overflow-hidden transition-all border-2 border-muted-foreground/20 hover:shadow-lg">
                   <CardHeader className="p-6 bg-muted/40">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xl font-semibold">{story.title}</h3>

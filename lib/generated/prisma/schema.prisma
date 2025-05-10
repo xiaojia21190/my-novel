@@ -1,0 +1,117 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique // Clerk 用户 ID，确保唯一性
+  email     String? // 可选，可以从 Clerk 同步
+  name      String? // 可选，可以从 Clerk 同步
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 在这里添加与其他模型的关系，例如：
+  // posts Post[]
+  stories    Story[] // 用户的故事
+  characters Character[] // 用户创建的角色
+}
+
+// 故事模型
+model Story {
+  id           String   @id @default(cuid())
+  title        String
+  content      String?  @db.Text // 使用Text类型以支持较长的内容，可选，因为内容可能分布在各章节中
+  summary      String?  @db.Text // 故事摘要
+  worldSetting String?  @db.Text // 世界观设定
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 用户关系
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 章节和角色关系
+  chapters   Chapter[]
+  characters Character[]
+
+  // 版本历史关系
+  versions StoryVersion[]
+
+  // 大纲和元数据
+  outline     String? @db.Text // 故事大纲
+  storyStatus String  @default("in_progress") // 故事状态：in_progress, completed, published
+
+  @@index([userId])
+}
+
+// 版本历史模型
+model StoryVersion {
+  id          String   @id @default(cuid())
+  versionId   String // 版本标识符
+  content     String   @db.Text // 版本内容
+  description String? // 版本描述
+  changeType  String // 变更类型: manual, auto, restore, auto-backup 等
+  createdAt   DateTime @default(now())
+  createdBy   String // 创建者标识
+  size        Int? // 内容大小（KB）
+
+  // 关联到故事
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@index([versionId])
+}
+
+// 章节模型
+model Chapter {
+  id             String   @id @default(cuid())
+  title          String // 章节标题
+  content        String   @db.Text // 章节内容
+  order          Int // 章节顺序
+  summary        String?  @db.Text // 章节摘要
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  notes          String?  @db.Text // 作者笔记
+  versionHistory String?  @db.Text // 版本历史JSON
+
+  // 关联到故事
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@index([order])
+}
+
+// 角色模型
+model Character {
+  id          String   @id @default(cuid())
+  name        String // 角色名称
+  description String?  @db.Text // 角色描述
+  attributes  String?  @db.Text // 角色属性，JSON格式
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联到用户和故事
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  storyId String
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([storyId])
+}
