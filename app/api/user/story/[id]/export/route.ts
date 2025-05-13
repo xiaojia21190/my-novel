@@ -1,21 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  authenticateUser,
-  apiError,
-  apiSuccess,
-  withErrorHandling
-} from '@/lib/api-helpers';
-import prisma from '@/lib/prisma';
-
-// 定义Character类型
-interface Character {
-  id: string;
-  name: string;
-  description?: string | null;
-  attributes?: string | null;
-  storyId: string;
-  userId: string;
-}
+import { prisma } from '@/lib/prisma';
+import { authenticateUser, apiError, withErrorHandling } from '@/lib/api-helpers';
+import { Character } from '@/lib/api-service';
+import { generatePDF, generateEPUB, ExportOptions } from '@/lib/document-generator';
 
 /**
  * 导出故事
@@ -32,7 +19,14 @@ export async function POST(
     }
 
     // 获取请求数据
-    const { format = 'txt', includeCharacters = false, includeOutline = false } = await req.json();
+    const {
+      format = 'txt',
+      includeCharacters = false,
+      includeOutline = false,
+      fontSize,
+      fontFamily,
+      pageSize
+    } = await req.json();
 
     // 验证用户身份
     const auth = await authenticateUser(req);
@@ -57,61 +51,99 @@ export async function POST(
       return apiError('访问被拒绝', '您无权导出此故事', 403);
     }
 
+    // 准备导出选项
+    const exportOptions: ExportOptions = {
+      title: story.title,
+      author: auth.dbUser.name || undefined,
+      chapters: story.chapters.map(ch => ({
+        title: ch.title,
+        content: ch.content || ''
+      })),
+      includeCharacters,
+      includeOutline,
+      fontSize,
+      fontFamily,
+      pageSize
+    };
+
     // 根据需要获取角色和大纲信息
-    let characters: Character[] = [];
-    let outline: string | null = null;
-
     if (includeCharacters) {
-      characters = await prisma.character.findMany({
+      const characters = await prisma.character.findMany({
         where: { storyId: storyId }
-      }) as Character[];
-    }
-
-    if (includeOutline) {
-      outline = story.outline;
-    }
-
-    // 生成文本内容
-    let content = `# ${story.title}\n\n`;
-
-    // 添加角色信息
-    if (includeCharacters && characters.length > 0) {
-      content += `## 角色介绍\n\n`;
-      characters.forEach(character => {
-        content += `### ${character.name}\n`;
-        if (character.description) {
-          content += `${character.description}\n\n`;
-        }
-        if (character.attributes) {
-          try {
-            const attrs = JSON.parse(character.attributes);
-            Object.entries(attrs).forEach(([key, value]) => {
-              content += `- ${key}: ${value}\n`;
-            });
-            content += `\n`;
-          } catch (e) {
-            // 忽略解析错误
-          }
-        }
       });
-      content += `\n`;
+      exportOptions.characters = characters.map(char => ({
+        name: char.name,
+        description: char.description || undefined,
+        attributes: char.attributes ? JSON.parse(char.attributes) : undefined
+      }));
     }
 
-    // 添加大纲
-    if (includeOutline && outline) {
-      content += `## 故事大纲\n\n${outline}\n\n`;
+    if (includeOutline && story.outline) {
+      exportOptions.outline = story.outline;
     }
-
-    // 添加章节内容
-    content += `## 正文\n\n`;
-    story.chapters.forEach(chapter => {
-      content += `### ${chapter.title}\n\n${chapter.content}\n\n`;
-    });
 
     // 根据格式返回不同内容
     switch (format) {
+      case 'pdf':
+        try {
+          const pdfBuffer = await generatePDF(exportOptions);
+          return new NextResponse(pdfBuffer, {
+            headers: {
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': `attachment; filename="${encodeURIComponent(story.title)}.pdf"`
+            }
+          });
+        } catch (error) {
+          console.error("生成PDF失败:", error);
+          return apiError('导出失败', '生成PDF文档时发生错误', 500);
+        }
+
+      case 'epub':
+        try {
+          const epubBuffer = await generateEPUB(exportOptions);
+          return new NextResponse(epubBuffer, {
+            headers: {
+              'Content-Type': 'application/epub+zip',
+              'Content-Disposition': `attachment; filename="${encodeURIComponent(story.title)}.epub"`
+            }
+          });
+        } catch (error) {
+          console.error("生成EPUB失败:", error);
+          return apiError('导出失败', '生成EPUB电子书时发生错误', 500);
+        }
+
       case 'txt':
         // 纯文本格式
+        let content = `# ${story.title}\n\n`;
+
+        // 添加角色信息
+        if (includeCharacters && exportOptions.characters && exportOptions.characters.length > 0) {
+          content += `## 角色介绍\n\n`;
+          exportOptions.characters.forEach(character => {
+            content += `### ${character.name}\n`;
+            if (character.description) {
+              content += `${character.description}\n\n`;
+            }
+            if (character.attributes) {
+              Object.entries(character.attributes).forEach(([key, value]) => {
+                content += `- ${key}: ${value}\n`;
+              });
+              content += `\n`;
+            }
+          });
+        }
+
+        // 添加大纲
+        if (includeOutline && exportOptions.outline) {
+          content += `## 故事大纲\n\n${exportOptions.outline}\n\n`;
+        }
+
+        // 添加章节内容
+        content += `## 正文\n\n`;
+        exportOptions.chapters.forEach(chapter => {
+          content += `### ${chapter.title}\n\n${chapter.content}\n\n`;
+        });
+
         return new NextResponse(content, {
           headers: {
             'Content-Type': 'text/plain; charset=utf-8',
@@ -138,37 +170,30 @@ export async function POST(
         <body>
           <h1>${story.title}</h1>
 
-          ${includeCharacters && characters.length > 0 ? `
+          ${includeCharacters && exportOptions.characters && exportOptions.characters.length > 0 ? `
           <h2>角色介绍</h2>
-          ${characters.map(char => `
+          ${exportOptions.characters.map(char => `
             <div class="character">
               <h3>${char.name}</h3>
               <p>${char.description || ''}</p>
-              ${char.attributes ? (() => {
-            try {
-              const attrs = JSON.parse(char.attributes);
-              return `
-                    <ul>
-                      ${Object.entries(attrs).map(([key, value]) => `<li><strong>${key}:</strong> ${value}</li>`).join('')}
-                    </ul>
-                  `;
-            } catch (e) {
-              return '';
-            }
-          })() : ''}
+              ${char.attributes ? `
+                <ul>
+                  ${Object.entries(char.attributes).map(([key, value]) => `<li><strong>${key}:</strong> ${value}</li>`).join('')}
+                </ul>
+              ` : ''}
             </div>
           `).join('')}
           ` : ''}
 
-          ${includeOutline && outline ? `
+          ${includeOutline && exportOptions.outline ? `
           <h2>故事大纲</h2>
           <div class="outline">
-            ${outline.split('\n').map(line => `<p>${line}</p>`).join('')}
+            ${exportOptions.outline.split('\n').map(line => `<p>${line}</p>`).join('')}
           </div>
           ` : ''}
 
           <h2>正文</h2>
-          ${story.chapters.map(chapter => `
+          ${exportOptions.chapters.map(chapter => `
             <div class="chapter">
               <h3>${chapter.title}</h3>
               ${chapter.content.split('\n\n').map(para => `<p>${para}</p>`).join('')}
@@ -184,21 +209,8 @@ export async function POST(
           }
         });
 
-      // 对于PDF和EPUB格式，这里简化处理为文本格式
-      // 实际项目中需要添加相应的库来生成这些格式
-      case 'pdf':
-      case 'epub':
       default:
-        // 简化示例：返回文本格式作为后备
-        return new NextResponse(
-          `注意：${format}格式正在开发中，暂时提供TXT格式。\n\n` + content,
-          {
-            headers: {
-              'Content-Type': 'text/plain; charset=utf-8',
-              'Content-Disposition': `attachment; filename="${encodeURIComponent(story.title)}.txt"`
-            }
-          }
-        );
+        return apiError('无效的格式', `不支持的导出格式: ${format}`, 400);
     }
   }, '导出故事失败');
 }

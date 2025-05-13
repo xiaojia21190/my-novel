@@ -9,11 +9,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Download, ArrowLeft, BookOpen } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Download, ArrowLeft, BookOpen, Settings } from "lucide-react";
 import { getStory, getChapters, getStoryCharacters, getOutline, Character } from "@/lib/api-service";
 import { toast } from "sonner";
 
 type ExportFormat = "pdf" | "epub" | "txt" | "html";
+
+// 页面大小选项
+const PAGE_SIZES = [
+  { label: "A4", value: "A4" },
+  { label: "A5", value: "A5" },
+  { label: "Letter", value: "letter" },
+  { label: "Legal", value: "legal" },
+];
+
+// 字体选项
+const FONT_FAMILIES = [
+  { label: "默认", value: "Helvetica" },
+  { label: "Times New Roman", value: "Times-Roman" },
+  { label: "Courier", value: "Courier" },
+];
 
 export default function ExportStoryPage() {
   const params = useParams();
@@ -29,6 +45,12 @@ export default function ExportStoryPage() {
   const [storyPreview, setStoryPreview] = useState("");
   const [charactersPreview, setCharactersPreview] = useState<Character[]>([]);
   const [outlinePreview, setOutlinePreview] = useState("");
+
+  // 高级导出选项
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [fontSize, setFontSize] = useState(12);
+  const [fontFamily, setFontFamily] = useState("Helvetica");
+  const [pageSize, setPageSize] = useState("A4");
 
   useEffect(() => {
     const loadStoryData = async () => {
@@ -72,6 +94,8 @@ export default function ExportStoryPage() {
           format: exportFormat,
           includeCharacters,
           includeOutline,
+          // 仅在PDF和EPUB格式时添加高级选项
+          ...(exportFormat === "pdf" || exportFormat === "epub" ? { fontSize, fontFamily, pageSize } : {}),
         }),
       });
 
@@ -168,6 +192,64 @@ export default function ExportStoryPage() {
                   </Label>
                 </div>
               </div>
+
+              {/* 高级选项按钮 - 仅对PDF和EPUB显示 */}
+              {(exportFormat === "pdf" || exportFormat === "epub") && (
+                <div className="pt-2">
+                  <Button variant="outline" type="button" className="w-full" onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    {showAdvancedOptions ? "隐藏高级选项" : "显示高级选项"}
+                  </Button>
+                </div>
+              )}
+
+              {/* 高级选项区域 */}
+              {showAdvancedOptions && (exportFormat === "pdf" || exportFormat === "epub") && (
+                <div className="p-3 mt-2 space-y-3 border rounded-md">
+                  <div className="space-y-2">
+                    <Label htmlFor="font-size">字体大小</Label>
+                    <div className="flex items-center space-x-2">
+                      <Input id="font-size" type="number" min={8} max={24} value={fontSize} onChange={(e) => setFontSize(parseInt(e.target.value) || 12)} />
+                      <span className="text-sm text-muted-foreground">pt</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="font-family">字体</Label>
+                    <Select value={fontFamily} onValueChange={setFontFamily}>
+                      <SelectTrigger id="font-family">
+                        <SelectValue placeholder="选择字体" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FONT_FAMILIES.map((font) => (
+                          <SelectItem key={font.value} value={font.value}>
+                            {font.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 仅PDF格式显示页面大小选项 */}
+                  {exportFormat === "pdf" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="page-size">页面大小</Label>
+                      <Select value={pageSize} onValueChange={setPageSize}>
+                        <SelectTrigger id="page-size">
+                          <SelectValue placeholder="选择页面大小" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAGE_SIZES.map((size) => (
+                            <SelectItem key={size.value} value={size.value}>
+                              {size.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
             <CardFooter>
               <Button onClick={handleExport} disabled={isExporting} className="w-full">
@@ -228,22 +310,31 @@ export default function ExportStoryPage() {
                 </TabsContent>
                 {includeCharacters && (
                   <TabsContent value="characters" className="mt-4">
-                    {charactersPreview.length > 0 ? (
-                      <div className="prose dark:prose-invert max-w-none">
-                        <h2>角色列表</h2>
-                        {charactersPreview.map((character) => (
-                          <div key={character.id} className="mb-4">
-                            <h3>{character.name}</h3>
-                            <p>{character.description || "无描述"}</p>
+                    <div className="space-y-4">
+                      <h2 className="text-xl font-bold">角色介绍</h2>
+                      {charactersPreview.length > 0 ? (
+                        charactersPreview.map((character) => (
+                          <div key={character.id} className="p-4 border rounded-md">
+                            <h3 className="mb-2 text-lg font-medium">{character.name}</h3>
+                            {character.description && <p className="mb-2 text-muted-foreground">{character.description}</p>}
+                            {character.attributes && (
+                              <div className="mt-2">
+                                <h4 className="mb-1 text-sm font-medium">属性</h4>
+                                <ul className="pl-5 text-sm list-disc">
+                                  {Object.entries(JSON.parse(character.attributes)).map(([key, value]) => (
+                                    <li key={key}>
+                                      <span className="font-medium">{key}:</span> {String(value)}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-                        <BookOpen className="w-12 h-12 mb-2 opacity-50" />
-                        <p>故事中还没有角色</p>
-                      </div>
-                    )}
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">没有角色信息</p>
+                      )}
+                    </div>
                   </TabsContent>
                 )}
                 {includeOutline && (

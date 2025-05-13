@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import toast from "@/lib/toast";
 import { checkStoryOwnership } from "@/lib/permissions";
+import { VersionHistoryPanel } from "@/components/VersionHistoryPanel";
 
 export default function StoryPage() {
   const params = useParams();
@@ -17,8 +18,23 @@ export default function StoryPage() {
   const { userId } = useAuth();
   const storyId = params.id as string;
 
+  // 定义故事数据类型
+  interface StoryData {
+    id: string;
+    title: string;
+    content?: string;
+    summary?: string;
+    worldSetting?: string;
+    outline?: string;
+    storyStatus: string;
+    createdAt: string;
+    updatedAt: string;
+    userId: string;
+    [key: string]: any; // 允许其他属性
+  }
+
   const [isLoading, setIsLoading] = useState(true);
-  const [story, setStory] = useState<any>(null);
+  const [story, setStory] = useState<StoryData | null>(null);
   const [characters, setCharacters] = useState<any[]>([]);
   const [chapters, setChapters] = useState<any[]>([]);
   const [outline, setOutline] = useState<any>(null);
@@ -26,6 +42,7 @@ export default function StoryPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionChecked, setPermissionChecked] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // 加载故事数据
   useEffect(() => {
@@ -74,6 +91,13 @@ export default function StoryPage() {
       checkPermission();
     }
   }, [userId, storyId, router]);
+
+  // 添加版本监听以刷新数据
+  useEffect(() => {
+    if (hasPermission && storyId) {
+      fetchStoryData();
+    }
+  }, [refreshTrigger, storyId, hasPermission]);
 
   const fetchStoryData = async () => {
     try {
@@ -151,6 +175,31 @@ export default function StoryPage() {
     wordCount: chapters.reduce((sum, chapter) => sum + (chapter.content?.length || 0), 0),
   };
 
+  // 处理版本恢复
+  const handleVersionRestore = (content: string) => {
+    // 更新本地故事数据
+    setStory((prev: StoryData | null) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        content,
+      };
+    });
+
+    // 触发数据刷新
+    setRefreshTrigger((prev) => prev + 1);
+
+    // 显示成功提示
+    toast({
+      title: "版本已恢复",
+      description: "故事内容已更新为所选版本",
+      variant: "success",
+    });
+
+    // 切换到概览标签页
+    setActiveTab("overview");
+  };
+
   // 权限检查中
   if (!permissionChecked) {
     return (
@@ -203,11 +252,12 @@ export default function StoryPage() {
 
         {/* 内容部分 */}
         <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-4 mb-6">
+          <TabsList className="grid grid-cols-5 mb-6">
             <TabsTrigger value="overview">概览</TabsTrigger>
             <TabsTrigger value="characters">角色 ({characters.length})</TabsTrigger>
             <TabsTrigger value="outline">大纲</TabsTrigger>
             <TabsTrigger value="chapters">章节 ({chapters.length})</TabsTrigger>
+            <TabsTrigger value="history">版本历史</TabsTrigger>
           </TabsList>
 
           {/* 各标签页内容 */}
@@ -360,6 +410,18 @@ export default function StoryPage() {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="history">
+            <Card>
+              <CardHeader>
+                <CardTitle>版本历史</CardTitle>
+                <CardDescription>查看和恢复故事的历史版本</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <VersionHistoryPanel storyId={storyId} onRestoreVersion={handleVersionRestore} />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

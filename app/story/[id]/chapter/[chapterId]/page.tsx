@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Save, RefreshCw, Sparkles } from "lucide-react";
 import { CoherenceChecker } from "@/components/CoherenceChecker";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { EnhancedRichTextEditor } from "@/components/ui/enhanced-rich-text-editor";
 import { AIWritingAssistant } from "@/components/ui/ai-writing-assistant";
 import { formatHtmlForStorage, formatStoredContentToHtml, isHtmlContent } from "@/components/ContentFormatter";
+import { toast } from "sonner";
 
 export default function ChapterEdit() {
   const params = useParams();
@@ -107,11 +108,46 @@ export default function ChapterEdit() {
           notes,
         });
       }
+
+      toast.success("章节保存成功");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存章节失败");
       console.error("保存章节失败:", err);
+      toast.error("保存章节失败");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // 自动保存内容的处理函数
+  const handleAutoSave = async (contentToSave: string) => {
+    if (!storyId || !chapterId) return;
+
+    try {
+      // 确保 HTML 内容以正确格式保存
+      const formattedContent = formatHtmlForStorage(contentToSave);
+
+      await updateChapter(storyId, chapterId, {
+        title,
+        content: formattedContent,
+        summary,
+        notes,
+      });
+
+      // 更新本地数据但不显示toast，以免干扰用户
+      if (chapter) {
+        setChapter({
+          ...chapter,
+          title,
+          content: formattedContent,
+          summary,
+          notes,
+        });
+      }
+      return Promise.resolve();
+    } catch (error) {
+      console.error("自动保存失败:", error);
+      return Promise.reject(error);
     }
   };
 
@@ -214,7 +250,15 @@ export default function ChapterEdit() {
 
                 <div>
                   <h3 className="mb-2 text-sm font-medium">章节内容</h3>
-                  <RichTextEditor content={content} onChange={setContent} placeholder="输入章节内容..." className="min-h-[400px]" />
+                  <EnhancedRichTextEditor
+                    content={content}
+                    onChange={setContent}
+                    onSave={handleAutoSave}
+                    placeholder="输入章节内容..."
+                    className="min-h-[400px]"
+                    autoSaveInterval={60000} // 每60秒自动保存一次
+                    maxCharacterCount={50000} // 限制字符数，根据实际需求调整
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -249,35 +293,23 @@ export default function ChapterEdit() {
         </div>
 
         <div className="space-y-6">
-          {/* AI 写作助手 */}
           <AIWritingAssistant selectedText={selectedText} onApplySuggestion={handleApplyAISuggestion} />
 
           {previousChapter && (
-            <>
-              <Card className="shadow-md">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-md">上一章: {previousChapter.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="max-h-[200px] overflow-y-auto text-sm text-muted-foreground">
-                    {previousChapter.content && (
-                      <div
-                        dangerouslySetInnerHTML={{
-                          __html: isHtmlContent(previousChapter.content)
-                            ? previousChapter.content.length > 500
-                              ? previousChapter.content.substring(0, 500) + "..."
-                              : previousChapter.content
-                            : `<p>${previousChapter.content.length > 300 ? previousChapter.content.substring(0, 300) + "..." : previousChapter.content}</p>`,
-                        }}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <CoherenceChecker previousChapterContent={previousChapter.content || ""} currentChapterContent={content} onFixSuggestion={handleApplySuggestion} />
-            </>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">参考上一章</CardTitle>
+              </CardHeader>
+              <CardContent className="max-h-[300px] overflow-y-auto">
+                <div className="text-sm opacity-80">
+                  <p className="font-medium">{previousChapter.title}</p>
+                  <div className="mt-2 line-clamp-6">{previousChapter.summary || previousChapter.content.slice(0, 200) + "..."}</div>
+                </div>
+              </CardContent>
+            </Card>
           )}
+
+          <CoherenceChecker storyId={storyId} chapterId={chapterId} content={content} onApplySuggestion={handleApplySuggestion} />
         </div>
       </div>
     </div>

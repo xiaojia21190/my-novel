@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { StoryNavigation } from "@/components/StoryNavigation";
 import { CharacterCard } from "@/components/CharacterCard";
 import { CharacterForm } from "@/components/CharacterForm";
+import { CharacterAnalysis } from "@/components/CharacterAnalysis";
 import { Button } from "@/components/ui/button";
 import { Users, UserPlus, Search, Loader2, RefreshCw, Filter, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getStory, getStoryCharacters, createCharacter, updateCharacter, deleteCharacter, generateCharacter } from "@/lib/api-service";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getStory, getStoryCharacters, getChapters, createCharacter, updateCharacter, deleteCharacter, generateCharacter } from "@/lib/api-service";
 import { toast } from "sonner";
 
 interface Character {
@@ -20,6 +22,12 @@ interface Character {
   name: string;
   description?: string | null;
   attributes?: string | null;
+}
+
+interface Chapter {
+  id: string;
+  title: string;
+  order: number;
 }
 
 interface Story {
@@ -30,6 +38,7 @@ interface Story {
 export default function CharactersPage() {
   const { id } = useParams() as { id: string };
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [story, setStory] = useState<Story | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -38,20 +47,21 @@ export default function CharactersPage() {
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("list");
 
-  // 获取故事和角色数据
+  // 获取故事、角色和章节数据
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const storyData = await getStory(id);
-        setStory(storyData);
+        const [storyData, charactersData, chaptersData] = await Promise.all([getStory(id), getStoryCharacters(id), getChapters(id)]);
 
-        const charactersData = await getStoryCharacters(id);
+        setStory(storyData);
         setCharacters(charactersData);
+        setChapters(chaptersData);
       } catch (error) {
-        console.error("获取角色数据失败:", error);
-        toast.error("加载角色数据失败");
+        console.error("获取数据失败:", error);
+        toast.error("加载数据失败");
       } finally {
         setIsLoading(false);
       }
@@ -145,6 +155,109 @@ export default function CharactersPage() {
     }
   };
 
+  // 渲染内容区域
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-10 h-10 mb-4 animate-spin text-primary" />
+          <p className="text-muted-foreground">加载数据中...</p>
+        </div>
+      );
+    }
+
+    return (
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="w-full mb-6">
+          <TabsTrigger value="list" className="flex-1">
+            角色列表
+          </TabsTrigger>
+          <TabsTrigger value="analysis" className="flex-1">
+            角色分析
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="list" className="mt-0">
+          {/* 搜索和过滤区域 */}
+          <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute w-4 h-4 text-muted-foreground left-3 top-3" />
+              <Input placeholder="搜索角色..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+            </div>
+            <div className="flex gap-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Filter className="w-4 h-4" />
+                    排序
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setCharacters([...characters].sort((a, b) => a.name.localeCompare(b.name)))}>按名称排序 (A-Z)</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setCharacters([...characters].sort((a, b) => b.name.localeCompare(a.name)))}>按名称排序 (Z-A)</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="outline" onClick={() => window.location.reload()} className="gap-2">
+                <RefreshCw className="w-4 h-4" />
+                刷新
+              </Button>
+            </div>
+          </div>
+
+          {/* 角色列表 */}
+          {filteredCharacters.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredCharacters.map((character) => (
+                <CharacterCard key={character.id} character={character} storyId={id} onEdit={handleEditCharacter} onDelete={handlePrepareDelete} />
+              ))}
+            </div>
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center p-6">
+                <Users className="w-12 h-12 mb-4 text-muted-foreground" />
+                {searchQuery ? (
+                  <p className="mb-4 text-center text-muted-foreground">没有找到匹配 "{searchQuery}" 的角色</p>
+                ) : (
+                  <>
+                    <p className="mb-4 text-center text-muted-foreground">你的故事还没有角色。添加角色可以让你的故事更加丰富。</p>
+                    <Button onClick={handleAddCharacter} className="gap-2">
+                      <UserPlus className="w-4 h-4" />
+                      添加第一个角色
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="analysis" className="mt-0">
+          {characters.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center p-6">
+                <Users className="w-12 h-12 mb-4 text-muted-foreground" />
+                <p className="mb-4 text-center text-muted-foreground">需要至少创建一个角色才能进行分析</p>
+                <Button onClick={handleAddCharacter} className="gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  添加角色
+                </Button>
+              </CardContent>
+            </Card>
+          ) : chapters.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center p-6">
+                <Users className="w-12 h-12 mb-4 text-muted-foreground" />
+                <p className="mb-4 text-center text-muted-foreground">需要至少创建一个章节才能进行角色分析</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <CharacterAnalysis storyId={id} characters={characters} chapters={chapters} />
+          )}
+        </TabsContent>
+      </Tabs>
+    );
+  };
+
   return (
     <div className="flex h-screen">
       {/* 左侧导航 */}
@@ -160,7 +273,7 @@ export default function CharactersPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-3xl font-bold">角色管理</h1>
-                <p className="text-muted-foreground">创建和管理你的故事角色</p>
+                <p className="text-muted-foreground">创建、管理和分析你的故事角色</p>
               </div>
               <div className="flex gap-3">
                 <Button onClick={handleGenerateCharacter} disabled={isGenerating} className="gap-2">
@@ -183,62 +296,8 @@ export default function CharactersPage() {
               </div>
             </div>
 
-            {/* 搜索和过滤区域 */}
-            <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center">
-              <div className="relative flex-1">
-                <Search className="absolute w-4 h-4 text-muted-foreground left-3 top-3" />
-                <Input placeholder="搜索角色..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
-              </div>
-              <div className="flex gap-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="gap-2">
-                      <Filter className="w-4 h-4" />
-                      排序
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setCharacters([...characters].sort((a, b) => a.name.localeCompare(b.name)))}>按名称排序 (A-Z)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setCharacters([...characters].sort((a, b) => b.name.localeCompare(a.name)))}>按名称排序 (Z-A)</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button variant="outline" onClick={() => window.location.reload()} className="gap-2">
-                  <RefreshCw className="w-4 h-4" />
-                  刷新
-                </Button>
-              </div>
-            </div>
-
-            {/* 角色列表 */}
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="w-10 h-10 mb-4 animate-spin text-primary" />
-                <p className="text-muted-foreground">加载角色中...</p>
-              </div>
-            ) : filteredCharacters.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredCharacters.map((character) => (
-                  <CharacterCard key={character.id} character={character} storyId={id} onEdit={handleEditCharacter} onDelete={handlePrepareDelete} />
-                ))}
-              </div>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center p-6">
-                  <Users className="w-12 h-12 mb-4 text-muted-foreground" />
-                  {searchQuery ? (
-                    <p className="mb-4 text-center text-muted-foreground">没有找到匹配 "{searchQuery}" 的角色</p>
-                  ) : (
-                    <>
-                      <p className="mb-4 text-center text-muted-foreground">你的故事还没有角色。添加角色可以让你的故事更加丰富。</p>
-                      <Button onClick={handleAddCharacter} className="gap-2">
-                        <UserPlus className="w-4 h-4" />
-                        添加第一个角色
-                      </Button>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+            {/* 内容区域 */}
+            {renderContent()}
           </div>
         </div>
       </div>

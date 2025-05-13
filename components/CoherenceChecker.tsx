@@ -4,24 +4,53 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertTriangle, CheckCircle, Info } from "lucide-react";
-import { analyzeCoherence, CoherenceAnalysis } from "@/lib/api-service";
+import { analyzeCoherence, analyzeConsistency, CoherenceAnalysis } from "@/lib/api-service";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CoherenceCheckerProps {
-  previousChapterContent: string;
-  currentChapterContent: string;
+  // 支持两种模式：直接传递内容或通过ID进行分析
+  previousChapterContent?: string;
+  currentChapterContent?: string;
+  // 新增的基于ID的分析模式
+  storyId?: string;
+  chapterId?: string;
+  content?: string;
   onFixSuggestion?: (issue: string) => void;
+  onApplySuggestion?: (issue: string) => void; // 兼容新命名
 }
 
-export function CoherenceChecker({ previousChapterContent, currentChapterContent, onFixSuggestion }: CoherenceCheckerProps) {
+export function CoherenceChecker({ previousChapterContent, currentChapterContent, storyId, chapterId, content, onFixSuggestion, onApplySuggestion }: CoherenceCheckerProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<CoherenceAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // 统一回调处理
+  const handleSuggestion = (issue: string) => {
+    // 支持两种命名方式
+    if (onFixSuggestion) {
+      onFixSuggestion(issue);
+    } else if (onApplySuggestion) {
+      onApplySuggestion(issue);
+    }
+  };
+
   const checkCoherence = async () => {
+    if (storyId && chapterId && content) {
+      // 使用基于API的分析方式
+      await checkCoherenceByIds();
+    } else if (previousChapterContent && currentChapterContent) {
+      // 使用直接传递内容的分析方式
+      await checkCoherenceByContent();
+    } else {
+      setError("无法进行分析：缺少必要参数");
+    }
+  };
+
+  // 直接基于内容的分析方法
+  const checkCoherenceByContent = async () => {
     if (!previousChapterContent || !currentChapterContent) {
       setError("上一章节和当前章节的内容不能为空");
       return;
@@ -40,11 +69,31 @@ export function CoherenceChecker({ previousChapterContent, currentChapterContent
     }
   };
 
-  const handleFixSuggestion = (issue: string) => {
-    if (onFixSuggestion) {
-      onFixSuggestion(issue);
+  // 基于ID的分析方法
+  const checkCoherenceByIds = async () => {
+    if (!storyId || !chapterId || !content) {
+      setError("故事ID、章节ID和内容不能为空");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+
+    try {
+      const result = await analyzeConsistency(storyId, content, "all", chapterId);
+      // 转换analyzeConsistency的结果为CoherenceAnalysis格式
+      setAnalysis({
+        coherent: result.isConsistent || false,
+        issues: result.issues || [],
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "连贯性分析失败");
+    } finally {
+      setIsAnalyzing(false);
     }
   };
+
+  const isDisabled = isAnalyzing || (!content && (!previousChapterContent || !currentChapterContent)) || (!previousChapterContent && (!storyId || !chapterId));
 
   return (
     <Card className="w-full shadow-md">
@@ -82,11 +131,11 @@ export function CoherenceChecker({ previousChapterContent, currentChapterContent
                       <div className="flex flex-col gap-1">
                         <div className="flex items-start justify-between">
                           <span className="text-red-600 flex-grow">• {issue}</span>
-                          {onFixSuggestion && (
+                          {(onFixSuggestion || onApplySuggestion) && (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleFixSuggestion(issue)}>
+                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleSuggestion(issue)}>
                                     应用建议
                                   </Button>
                                 </TooltipTrigger>
@@ -109,7 +158,7 @@ export function CoherenceChecker({ previousChapterContent, currentChapterContent
         )}
       </CardContent>
       <CardFooter className="flex justify-center pt-2">
-        <Button onClick={checkCoherence} disabled={isAnalyzing || !previousChapterContent || !currentChapterContent} className="w-full">
+        <Button onClick={checkCoherence} disabled={isDisabled} className="w-full">
           {isAnalyzing ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
